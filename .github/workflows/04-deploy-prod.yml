@@ -17,61 +17,35 @@ jobs:
 
     steps:
 
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/949358550209/locations/global/workloadIdentityPools/github-pool2/providers/github-provider
           service_account: github-actions@new123456-501605.iam.gserviceaccount.com
 
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: gke-gcloud-auth-plugin
 
-      - name: Read Deployment Configuration
-        run: |
+      - run: |
           echo "PROJECT_ID=$(gcloud secrets versions access latest --secret=PROJECT_ID)" >> $GITHUB_ENV
           echo "GKE_CLUSTER=$(gcloud secrets versions access latest --secret=GKE_CLUSTER)" >> $GITHUB_ENV
           echo "GKE_ZONE=$(gcloud secrets versions access latest --secret=GKE_ZONE)" >> $GITHUB_ENV
           echo "PROD_NAMESPACE=$(gcloud secrets versions access latest --secret=PROD_NAMESPACE)" >> $GITHUB_ENV
 
-      - name: Connect to GKE
-        run: |
-          gcloud container clusters get-credentials \
-          "$GKE_CLUSTER" \
+      - run: |
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
+      - run: |
+          gcloud container clusters get-credentials "$GKE_CLUSTER" \
           --zone "$GKE_ZONE" \
           --project "$PROJECT_ID"
 
-      - name: Deploy to Production
-        run: |
-          kubectl apply -k k8s/overlays/prod
+      - run: kubectl apply -k k8s/overlays/prod
 
-      - name: Wait for Rollout
-        run: |
-          DEPLOYMENTS=$(kubectl get deploy -n ${PROD_NAMESPACE} -o jsonpath='{.items[*].metadata.name}')
-
-          for DEPLOY in $DEPLOYMENTS
+      - run: |
+          for DEPLOY in $(kubectl get deploy -n ${PROD_NAMESPACE} -o jsonpath='{.items[*].metadata.name}')
           do
-              echo "Waiting for $DEPLOY..."
-              kubectl rollout status deployment/$DEPLOY \
-                -n ${PROD_NAMESPACE} \
-                --timeout=10m
+            kubectl rollout status deployment/$DEPLOY -n ${PROD_NAMESPACE} --timeout=10m
           done
-
-      - name: Verify
-        run: |
-          kubectl get pods -n ${PROD_NAMESPACE}
-          kubectl get svc -n ${PROD_NAMESPACE}
-
-      - name: Summary
-        run: |
-          {
-            echo "## Production Deployment Successful"
-            echo ""
-            echo "| Item | Value |"
-            echo "|------|-------|"
-            echo "| Environment | Production |"
-            echo "| Namespace | ${PROD_NAMESPACE} |"
-            echo "| Cluster | ${GKE_CLUSTER} |"
-          } >> $GITHUB_STEP_SUMMARY

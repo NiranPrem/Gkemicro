@@ -1,8 +1,10 @@
 name: Deploy to Dev
 
 on:
+
   workflow_run:
-    workflows: ["Build and Push Images"]
+    workflows:
+      - Build and Push Images
     types:
       - completed
 
@@ -33,6 +35,8 @@ jobs:
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: gke-gcloud-auth-plugin
 
       - name: Read Deployment Configuration
         run: |
@@ -41,12 +45,16 @@ jobs:
           echo "GKE_ZONE=$(gcloud secrets versions access latest --secret=GKE_ZONE)" >> $GITHUB_ENV
           echo "DEV_NAMESPACE=$(gcloud secrets versions access latest --secret=DEV_NAMESPACE)" >> $GITHUB_ENV
 
+      - name: Enable GKE Auth Plugin
+        run: |
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
       - name: Connect to GKE
         run: |
           gcloud container clusters get-credentials \
-            "$GKE_CLUSTER" \
-            --zone "$GKE_ZONE" \
-            --project "$PROJECT_ID"
+          "$GKE_CLUSTER" \
+          --zone "$GKE_ZONE" \
+          --project "$PROJECT_ID"
 
       - name: Deploy to Dev
         run: |
@@ -54,25 +62,21 @@ jobs:
 
       - name: Wait for Rollout
         run: |
-
-          DEPLOYMENTS=$(kubectl get deploy \
-            -n ${DEV_NAMESPACE} \
-            -o jsonpath='{.items[*].metadata.name}')
+          DEPLOYMENTS=$(kubectl get deploy -n ${DEV_NAMESPACE} -o jsonpath='{.items[*].metadata.name}')
 
           for DEPLOY in $DEPLOYMENTS
           do
-              echo "Waiting for $DEPLOY..."
-              kubectl rollout status deployment/$DEPLOY \
-                  -n ${DEV_NAMESPACE} \
-                  --timeout=10m
+            kubectl rollout status deployment/$DEPLOY \
+            -n ${DEV_NAMESPACE} \
+            --timeout=10m
           done
 
-      - name: Verify Pods
+      - name: Verify
         run: |
           kubectl get pods -n ${DEV_NAMESPACE}
           kubectl get svc -n ${DEV_NAMESPACE}
 
-      - name: Deployment Summary
+      - name: Summary
         run: |
           {
             echo "## Dev Deployment Successful"
@@ -82,5 +86,4 @@ jobs:
             echo "| Environment | Dev |"
             echo "| Namespace | ${DEV_NAMESPACE} |"
             echo "| Cluster | ${GKE_CLUSTER} |"
-            echo "| Commit | ${GITHUB_SHA} |"
           } >> $GITHUB_STEP_SUMMARY
