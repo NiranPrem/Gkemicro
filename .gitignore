@@ -27,3 +27,8 @@ pkg/
 release/wi-kubernetes-manifests.yaml
 vendor/
 gha-creds-*.json
+
+# GitHub Actions build scripts
+!scripts/
+!scripts/build/
+!scripts/build/*.sh
