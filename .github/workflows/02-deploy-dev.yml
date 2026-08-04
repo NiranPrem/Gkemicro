@@ -1,7 +1,6 @@
 name: Deploy to Dev
 
 on:
-
   workflow_run:
     workflows:
       - Build and Push Images
@@ -13,12 +12,14 @@ permissions:
   id-token: write
 
 jobs:
-
   deploy:
 
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
 
     environment: dev
 
@@ -35,8 +36,11 @@ jobs:
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          install_components: gke-gcloud-auth-plugin
+
+      - name: Install GKE Auth Plugin
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-cloud-cli-gke-gcloud-auth-plugin
 
       - name: Read Deployment Configuration
         run: |
@@ -44,10 +48,6 @@ jobs:
           echo "GKE_CLUSTER=$(gcloud secrets versions access latest --secret=GKE_CLUSTER)" >> $GITHUB_ENV
           echo "GKE_ZONE=$(gcloud secrets versions access latest --secret=GKE_ZONE)" >> $GITHUB_ENV
           echo "DEV_NAMESPACE=$(gcloud secrets versions access latest --secret=DEV_NAMESPACE)" >> $GITHUB_ENV
-
-      - name: Enable GKE Auth Plugin
-        run: |
-          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
       - name: Connect to GKE
         run: |
@@ -66,24 +66,25 @@ jobs:
 
           for DEPLOY in $DEPLOYMENTS
           do
+            echo "Waiting for $DEPLOY..."
             kubectl rollout status deployment/$DEPLOY \
-            -n ${DEV_NAMESPACE} \
-            --timeout=10m
+              -n ${DEV_NAMESPACE} \
+              --timeout=10m
           done
 
-      - name: Verify
+      - name: Verify Deployment
         run: |
           kubectl get pods -n ${DEV_NAMESPACE}
           kubectl get svc -n ${DEV_NAMESPACE}
 
-      - name: Summary
+      - name: Deployment Summary
         run: |
           {
-            echo "## Dev Deployment Successful"
+            echo "## Development Deployment Successful"
             echo ""
             echo "| Item | Value |"
             echo "|------|-------|"
-            echo "| Environment | Dev |"
+            echo "| Environment | Development |"
             echo "| Namespace | ${DEV_NAMESPACE} |"
             echo "| Cluster | ${GKE_CLUSTER} |"
           } >> $GITHUB_STEP_SUMMARY
