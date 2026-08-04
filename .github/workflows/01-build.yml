@@ -1,0 +1,75 @@
+name: Build and Push Images
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/949358550209/locations/global/workloadIdentityPools/github-pool2/providers/github-provider
+          service_account: github-actions@new123456-501605.iam.gserviceaccount.com
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read CI/CD Configuration
+        run: |
+          echo "PROJECT_ID=$(gcloud secrets versions access latest --secret=PROJECT_ID)" >> $GITHUB_ENV
+          echo "ARTIFACT_REGION=$(gcloud secrets versions access latest --secret=ARTIFACT_REGION)" >> $GITHUB_ENV
+          echo "ARTIFACT_REPOSITORY=$(gcloud secrets versions access latest --secret=ARTIFACT_REPOSITORY)" >> $GITHUB_ENV
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker ${ARTIFACT_REGION}-docker.pkg.dev --quiet
+
+      - name: Detect Changed Services
+        id: detect
+        run: |
+          chmod +x scripts/build/detect-services.sh
+          SERVICES=$(./scripts/build/detect-services.sh | tr '\n' ' ')
+          echo "services=$SERVICES" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Images
+        run: |
+
+          chmod +x scripts/build/build-image.sh
+
+          for SERVICE in ${{ steps.detect.outputs.services }}
+          do
+
+            PROJECT_ID=${PROJECT_ID} \
+            ARTIFACT_REGION=${ARTIFACT_REGION} \
+            ARTIFACT_REPOSITORY=${ARTIFACT_REPOSITORY} \
+            GITHUB_SHA=${GITHUB_SHA} \
+            ./scripts/build/build-image.sh "$SERVICE"
+
+          done
+
+      - name: Build Summary
+        run: |
+          {
+            echo "## Build Successful"
+            echo ""
+            echo "| Item | Value |"
+            echo "|------|-------|"
+            echo "| Repository | $GITHUB_REPOSITORY |"
+            echo "| Commit | $GITHUB_SHA |"
+            echo "| Services | ${{ steps.detect.outputs.services }} |"
+          } >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,86 @@
+name: Deploy to Dev
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Images"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+
+  deploy:
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    runs-on: ubuntu-latest
+
+    environment: dev
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/949358550209/locations/global/workloadIdentityPools/github-pool2/providers/github-provider
+          service_account: github-actions@new123456-501605.iam.gserviceaccount.com
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read Deployment Configuration
+        run: |
+          echo "PROJECT_ID=$(gcloud secrets versions access latest --secret=PROJECT_ID)" >> $GITHUB_ENV
+          echo "GKE_CLUSTER=$(gcloud secrets versions access latest --secret=GKE_CLUSTER)" >> $GITHUB_ENV
+          echo "GKE_ZONE=$(gcloud secrets versions access latest --secret=GKE_ZONE)" >> $GITHUB_ENV
+          echo "DEV_NAMESPACE=$(gcloud secrets versions access latest --secret=DEV_NAMESPACE)" >> $GITHUB_ENV
+
+      - name: Connect to GKE
+        run: |
+          gcloud container clusters get-credentials \
+            "$GKE_CLUSTER" \
+            --zone "$GKE_ZONE" \
+            --project "$PROJECT_ID"
+
+      - name: Deploy to Dev
+        run: |
+          kubectl apply -k k8s/overlays/dev
+
+      - name: Wait for Rollout
+        run: |
+
+          DEPLOYMENTS=$(kubectl get deploy \
+            -n ${DEV_NAMESPACE} \
+            -o jsonpath='{.items[*].metadata.name}')
+
+          for DEPLOY in $DEPLOYMENTS
+          do
+              echo "Waiting for $DEPLOY..."
+              kubectl rollout status deployment/$DEPLOY \
+                  -n ${DEV_NAMESPACE} \
+                  --timeout=10m
+          done
+
+      - name: Verify Pods
+        run: |
+          kubectl get pods -n ${DEV_NAMESPACE}
+          kubectl get svc -n ${DEV_NAMESPACE}
+
+      - name: Deployment Summary
+        run: |
+          {
+            echo "## Dev Deployment Successful"
+            echo ""
+            echo "| Item | Value |"
+            echo "|------|-------|"
+            echo "| Environment | Dev |"
+            echo "| Namespace | ${DEV_NAMESPACE} |"
+            echo "| Cluster | ${GKE_CLUSTER} |"
+            echo "| Commit | ${GITHUB_SHA} |"
+          } >> $GITHUB_STEP_SUMMARY
