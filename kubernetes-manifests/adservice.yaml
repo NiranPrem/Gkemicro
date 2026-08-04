@@ -43,7 +43,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: adservice
+        image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/adservice:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9555
         env:

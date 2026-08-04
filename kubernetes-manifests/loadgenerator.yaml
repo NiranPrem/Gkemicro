@@ -77,7 +77,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: loadgenerator
+        image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/loadgenerator:latest
+        imagePullPolicy: IfNotPresent
         env:
         - name: FRONTEND_ADDR
           value: "frontend:80"

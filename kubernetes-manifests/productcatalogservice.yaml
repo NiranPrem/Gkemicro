@@ -43,7 +43,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: productcatalogservice
+        image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/productcatalogservice:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3550
         env:

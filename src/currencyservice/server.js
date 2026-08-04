@@ -25,7 +25,7 @@ const logger = pino({
   }
 });
 
-if(process.env.DISABLE_PROFILER) {
+if(true || process.env.DISABLE_PROFILER) {
   logger.info("Profiler disabled.")
 }
 else {

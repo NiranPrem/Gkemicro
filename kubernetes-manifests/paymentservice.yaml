@@ -43,7 +43,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: paymentservice
+        image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/paymentservice:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50051
         env:

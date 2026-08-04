@@ -1,0 +1,107 @@
+version: "3.9"
+
+services:
+
+  redis-cart:
+    image: redis:alpine
+    container_name: redis-cart
+    networks:
+      - boutique
+
+  adservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/adservice:latest
+    container_name: adservice
+    networks:
+      - boutique
+
+  cartservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/cartservice:latest
+    container_name: cartservice
+    depends_on:
+      - redis-cart
+    environment:
+      REDIS_ADDR: redis-cart:6379
+    networks:
+      - boutique
+
+  checkoutservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/checkoutservice:latest
+    container_name: checkoutservice
+    environment:
+      PRODUCT_CATALOG_SERVICE_ADDR: productcatalogservice:3550
+      SHIPPING_SERVICE_ADDR: shippingservice:50051
+      PAYMENT_SERVICE_ADDR: paymentservice:50051
+      EMAIL_SERVICE_ADDR: emailservice:5000
+      CURRENCY_SERVICE_ADDR: currencyservice:7000
+      CART_SERVICE_ADDR: cartservice:7070
+    networks:
+      - boutique
+
+  currencyservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/currencyservice:latest
+    container_name: currencyservice
+    networks:
+      - boutique
+
+  emailservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/emailservice:latest
+    container_name: emailservice
+    networks:
+      - boutique
+
+  paymentservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/paymentservice:latest
+    container_name: paymentservice
+    networks:
+      - boutique
+
+  productcatalogservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/productcatalogservice:latest
+    container_name: productcatalogservice
+    networks:
+      - boutique
+
+  recommendationservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/recommendationservice:latest
+    container_name: recommendationservice
+    environment:
+      PRODUCT_CATALOG_SERVICE_ADDR: productcatalogservice:3550
+    networks:
+      - boutique
+
+  shippingservice:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/shippingservice:latest
+    container_name: shippingservice
+    networks:
+      - boutique
+
+  frontend:
+    image: asia-south1-docker.pkg.dev/new123456-501605/online-boutique/frontend:latest
+    container_name: frontend
+    ports:
+      - "8090:8080"
+    depends_on:
+      - productcatalogservice
+      - currencyservice
+      - cartservice
+      - recommendationservice
+      - checkoutservice
+      - shippingservice
+      - paymentservice
+      - emailservice
+      - adservice
+    environment:
+      PORT: 8080
+      PRODUCT_CATALOG_SERVICE_ADDR: productcatalogservice:3550
+      CURRENCY_SERVICE_ADDR: currencyservice:7000
+      CART_SERVICE_ADDR: cartservice:7070
+      RECOMMENDATION_SERVICE_ADDR: recommendationservice:8080
+      SHIPPING_SERVICE_ADDR: shippingservice:50051
+      CHECKOUT_SERVICE_ADDR: checkoutservice:5050
+      AD_SERVICE_ADDR: adservice:9555
+    networks:
+      - boutique
+
+networks:
+  boutique:
+    name: boutique-network
